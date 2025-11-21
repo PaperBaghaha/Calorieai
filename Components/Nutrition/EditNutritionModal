@@ -1,0 +1,151 @@
+import React, { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+
+export default function EditNutritionModal({ isOpen, onClose, prediction, onSave }) {
+  const [editedData, setEditedData] = useState(prediction || {});
+
+  const handleSave = () => {
+    onSave(editedData);
+    onClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-2xl">Edit Nutrition Information</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-6 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="food_name">Food Name</Label>
+            <Input
+              id="food_name"
+              value={editedData.food_name || ''}
+              onChange={(e) => setEditedData({ ...editedData, food_name: e.target.value })}
+              placeholder="e.g., Grilled Chicken Salad"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="category">Category</Label>
+              <Select
+                value={editedData.category || 'snack'}
+                onValueChange={(value) => setEditedData({ ...editedData, category: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="main_course">Main Course</SelectItem>
+                  <SelectItem value="dessert">Dessert</SelectItem>
+                  <SelectItem value="snack">Snack</SelectItem>
+                  <SelectItem value="beverage">Beverage</SelectItem>
+                  <SelectItem value="breakfast">Breakfast</SelectItem>
+                  <SelectItem value="side_dish">Side Dish</SelectItem>
+                  <SelectItem value="salad">Salad</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="meal_type">Meal Type</Label>
+              <Select
+                value={editedData.meal_type || 'snack'}
+                onValueChange={(value) => setEditedData({ ...editedData, meal_type: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="breakfast">Breakfast</SelectItem>
+                  <SelectItem value="lunch">Lunch</SelectItem>
+                  <SelectItem value="dinner">Dinner</SelectItem>
+                  <SelectItem value="snack">Snack</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="calories">Calories</Label>
+              <Input
+                id="calories"
+                type="number"
+                min="0"
+                value={editedData.calories || ''}
+                onChange={(e) => setEditedData({ ...editedData, calories: parseFloat(e.target.value) })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="protein">Protein (g)</Label>
+              <Input
+                id="protein"
+                type="number"
+                min="0"
+                step="0.1"
+                value={editedData.protein || ''}
+                onChange={(e) => setEditedData({ ...editedData, protein: parseFloat(e.target.value) })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="carbs">Carbs (g)</Label>
+              <Input
+                id="carbs"
+                type="number"
+                min="0"
+                step="0.1"
+                value={editedData.carbs || ''}
+                onChange={(e) => setEditedData({ ...editedData, carbs: parseFloat(e.target.value) })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="fat">Fat (g)</Label>
+              <Input
+                id="fat"
+                type="number"
+                min="0"
+                step="0.1"
+                value={editedData.fat || ''}
+                onChange={(e) => setEditedData({ ...editedData, fat: parseFloat(e.target.value) })}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notes (Optional)</Label>
+            <Textarea
+              id="notes"
+              value={editedData.notes || ''}
+              onChange={(e) => setEditedData({ ...editedData, notes: e.target.value })}
+              placeholder="Add any additional notes..."
+              rows={3}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSave}
+            className="bg-[#8B9D83] hover:bg-[#7A8C73]"
+          >
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

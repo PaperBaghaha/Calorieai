@@ -1,0 +1,77 @@
+{
+  "name": "FoodLog",
+  "type": "object",
+  "properties": {
+    "image_url": {
+      "type": "string",
+      "description": "URL of the food image"
+    },
+    "food_name": {
+      "type": "string",
+      "description": "Predicted or corrected food name"
+    },
+    "confidence": {
+      "type": "number",
+      "description": "Confidence score of the prediction (0-100)"
+    },
+    "calories": {
+      "type": "number",
+      "description": "Total calories"
+    },
+    "protein": {
+      "type": "number",
+      "description": "Protein in grams"
+    },
+    "carbs": {
+      "type": "number",
+      "description": "Carbohydrates in grams"
+    },
+    "fat": {
+      "type": "number",
+      "description": "Fat in grams"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "main_course",
+        "dessert",
+        "snack",
+        "beverage",
+        "breakfast",
+        "side_dish",
+        "salad"
+      ],
+      "description": "Food category"
+    },
+    "meal_type": {
+      "type": "string",
+      "enum": [
+        "breakfast",
+        "lunch",
+        "dinner",
+        "snack"
+      ],
+      "description": "When the meal was consumed"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes or corrections"
+    },
+    "is_corrected": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether user manually corrected the prediction"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of the meal"
+    }
+  },
+  "required": [
+    "image_url",
+    "food_name",
+    "calories",
+    "date"
+  ]
+}

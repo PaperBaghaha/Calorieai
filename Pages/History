@@ -1,0 +1,198 @@
+import React, { useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import { useQuery } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+import { ArrowLeft, Filter, Download } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import MealCard from '../components/nutrition/MealCard';
+import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from 'date-fns';
+
+export default function History() {
+  const [filter, setFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+
+  const { data: meals = [], isLoading } = useQuery({
+    queryKey: ['allMeals'],
+    queryFn: async () => {
+      return await base44.entities.FoodLog.list('-created_date', 200);
+    }
+  });
+
+  const filteredMeals = meals.filter(meal => {
+    const mealDate = new Date(meal.created_date);
+    const now = new Date();
+    
+    let dateMatch = true;
+    if (filter === 'today') {
+      dateMatch = format(mealDate, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd');
+    } else if (filter === 'week') {
+      const weekStart = startOfWeek(now);
+      const weekEnd = endOfWeek(now);
+      dateMatch = mealDate >= weekStart && mealDate <= weekEnd;
+    } else if (filter === 'month') {
+      const monthStart = startOfMonth(now);
+      const monthEnd = endOfMonth(now);
+      dateMatch = mealDate >= monthStart && mealDate <= monthEnd;
+    }
+    
+    const categoryMatch = categoryFilter === 'all' || meal.category === categoryFilter;
+    
+    return dateMatch && categoryMatch;
+  });
+
+  const exportData = () => {
+    const csv = [
+      ['Date', 'Food Name', 'Category', 'Meal Type', 'Calories', 'Protein (g)', 'Carbs (g)', 'Fat (g)', 'Confidence', 'Notes'].join(','),
+      ...meals.map(meal => [
+        format(new Date(meal.created_date), 'yyyy-MM-dd HH:mm'),
+        meal.food_name,
+        meal.category,
+        meal.meal_type || '',
+        meal.calories,
+        meal.protein,
+        meal.carbs,
+        meal.fat,
+        meal.confidence || '',
+        (meal.notes || '').replace(/,/g, ';')
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nutrition-log-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    a.click();
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#FAF9F6] via-[#F5F3EE] to-[#EAE7DC]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Link to={createPageUrl('Home')}>
+              <Button variant="ghost" className="text-gray-600 hover:text-gray-900">
+                <ArrowLeft className="w-5 h-5 mr-2" />
+                Back
+              </Button>
+            </Link>
+            <h1 className="text-3xl font-bold text-gray-900">Meal History</h1>
+          </div>
+          <Button
+            onClick={exportData}
+            variant="outline"
+            className="border-2 border-[#8B9D83] text-[#8B9D83] hover:bg-[#8B9D83] hover:text-white"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Export CSV
+          </Button>
+        </div>
+
+        {/* Filters */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-2xl p-6 border-2 border-[#8B9D83]/20 space-y-4"
+        >
+          <div className="flex items-center gap-2 text-gray-700 font-medium">
+            <Filter className="w-5 h-5" />
+            <span>Filters</span>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <p className="text-sm text-gray-600 mb-2">Time Period</p>
+              <Tabs value={filter} onValueChange={setFilter}>
+                <TabsList className="w-full grid grid-cols-4">
+                  <TabsTrigger value="all">All Time</TabsTrigger>
+                  <TabsTrigger value="today">Today</TabsTrigger>
+                  <TabsTrigger value="week">This Week</TabsTrigger>
+                  <TabsTrigger value="month">This Month</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+            
+            <div className="flex-1">
+              <p className="text-sm text-gray-600 mb-2">Category</p>
+              <Tabs value={categoryFilter} onValueChange={setCategoryFilter}>
+                <TabsList className="w-full grid grid-cols-4">
+                  <TabsTrigger value="all">All</TabsTrigger>
+                  <TabsTrigger value="main_course">Meals</TabsTrigger>
+                  <TabsTrigger value="snack">Snacks</TabsTrigger>
+                  <TabsTrigger value="beverage">Drinks</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Stats Summary */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="grid grid-cols-2 sm:grid-cols-4 gap-4"
+        >
+          <div className="bg-white rounded-xl p-4 border-2 border-[#8B9D83]/20">
+            <p className="text-sm text-gray-600 mb-1">Total Meals</p>
+            <p className="text-2xl font-bold text-gray-900">{filteredMeals.length}</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border-2 border-orange-200">
+            <p className="text-sm text-gray-600 mb-1">Total Calories</p>
+            <p className="text-2xl font-bold text-orange-600">
+              {Math.round(filteredMeals.reduce((sum, m) => sum + (m.calories || 0), 0))}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border-2 border-red-200">
+            <p className="text-sm text-gray-600 mb-1">Total Protein</p>
+            <p className="text-2xl font-bold text-red-600">
+              {Math.round(filteredMeals.reduce((sum, m) => sum + (m.protein || 0), 0))}g
+            </p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border-2 border-amber-200">
+            <p className="text-sm text-gray-600 mb-1">Avg Cal/Meal</p>
+            <p className="text-2xl font-bold text-amber-600">
+              {filteredMeals.length > 0 
+                ? Math.round(filteredMeals.reduce((sum, m) => sum + (m.calories || 0), 0) / filteredMeals.length)
+                : 0}
+            </p>
+          </div>
+        </motion.div>
+
+        {/* Meals Grid */}
+        {isLoading ? (
+          <div className="text-center py-12">
+            <p className="text-gray-600">Loading meals...</p>
+          </div>
+        ) : filteredMeals.length > 0 ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
+          >
+            {filteredMeals.map((meal, index) => (
+              <motion.div
+                key={meal.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <MealCard meal={meal} />
+              </motion.div>
+            ))}
+          </motion.div>
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-gray-600">No meals found for the selected filters</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

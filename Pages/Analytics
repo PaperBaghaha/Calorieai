@@ -1,0 +1,371 @@
+import React, { useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import { useQuery } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+import { ArrowLeft, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { format, startOfWeek, startOfMonth, subDays, subWeeks, subMonths } from 'date-fns';
+
+const COLORS = ['#8B9D83', '#FFB4A2', '#F4D19B', '#A8D8EA', '#C8E6C9', '#FFE5B4', '#90EE90'];
+
+export default function Analytics() {
+  const [timeRange, setTimeRange] = useState('week');
+
+  const { data: meals = [] } = useQuery({
+    queryKey: ['allMeals'],
+    queryFn: async () => {
+      return await base44.entities.FoodLog.list('-created_date', 500);
+    }
+  });
+
+  const { data: goals } = useQuery({
+    queryKey: ['userGoals'],
+    queryFn: async () => {
+      const goalsList = await base44.entities.UserGoals.list();
+      return goalsList[0] || null;
+    }
+  });
+
+  // Filter meals based on time range
+  const getFilteredMeals = () => {
+    const now = new Date();
+    let cutoffDate;
+    
+    if (timeRange === 'week') {
+      cutoffDate = subWeeks(now, 1);
+    } else if (timeRange === 'month') {
+      cutoffDate = subMonths(now, 1);
+    } else {
+      cutoffDate = subMonths(now, 3);
+    }
+    
+    return meals.filter(meal => new Date(meal.created_date) >= cutoffDate);
+  };
+
+  const filteredMeals = getFilteredMeals();
+
+  // Daily trend data
+  const getDailyData = () => {
+    const dailyMap = {};
+    
+    filteredMeals.forEach(meal => {
+      const date = format(new Date(meal.created_date), 'MMM d');
+      if (!dailyMap[date]) {
+        dailyMap[date] = { date, calories: 0, protein: 0, carbs: 0, fat: 0 };
+      }
+      dailyMap[date].calories += meal.calories || 0;
+      dailyMap[date].protein += meal.protein || 0;
+      dailyMap[date].carbs += meal.carbs || 0;
+      dailyMap[date].fat += meal.fat || 0;
+    });
+    
+    return Object.values(dailyMap).sort((a, b) => 
+      new Date(a.date) - new Date(b.date)
+    );
+  };
+
+  // Category breakdown
+  const getCategoryData = () => {
+    const categoryMap = {};
+    
+    filteredMeals.forEach(meal => {
+      const category = meal.category || 'other';
+      if (!categoryMap[category]) {
+        categoryMap[category] = { name: category, value: 0, calories: 0 };
+      }
+      categoryMap[category].value += 1;
+      categoryMap[category].calories += meal.calories || 0;
+    });
+    
+    return Object.values(categoryMap);
+  };
+
+  // Macro distribution
+  const getMacroData = () => {
+    const totals = filteredMeals.reduce((acc, meal) => ({
+      protein: acc.protein + (meal.protein || 0),
+      carbs: acc.carbs + (meal.carbs || 0),
+      fat: acc.fat + (meal.fat || 0)
+    }), { protein: 0, carbs: 0, fat: 0 });
+    
+    return [
+      { name: 'Protein', value: Math.round(totals.protein) },
+      { name: 'Carbs', value: Math.round(totals.carbs) },
+      { name: 'Fat', value: Math.round(totals.fat) }
+    ];
+  };
+
+  // Average daily intake
+  const getAverages = () => {
+    if (filteredMeals.length === 0) return { calories: 0, protein: 0, carbs: 0, fat: 0 };
+    
+    const uniqueDays = new Set(filteredMeals.map(m => format(new Date(m.created_date), 'yyyy-MM-dd'))).size;
+    const totals = filteredMeals.reduce((acc, meal) => ({
+      calories: acc.calories + (meal.calories || 0),
+      protein: acc.protein + (meal.protein || 0),
+      carbs: acc.carbs + (meal.carbs || 0),
+      fat: acc.fat + (meal.fat || 0)
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+    
+    return {
+      calories: Math.round(totals.calories / uniqueDays),
+      protein: Math.round(totals.protein / uniqueDays),
+      carbs: Math.round(totals.carbs / uniqueDays),
+      fat: Math.round(totals.fat / uniqueDays)
+    };
+  };
+
+  const averages = getAverages();
+  const dailyData = getDailyData();
+  const categoryData = getCategoryData();
+  const macroData = getMacroData();
+
+  const getTrend = (value, goal) => {
+    if (!goal) return 'neutral';
+    const diff = value - goal;
+    const percentDiff = (diff / goal) * 100;
+    if (Math.abs(percentDiff) < 5) return 'neutral';
+    return diff > 0 ? 'up' : 'down';
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#FAF9F6] via-[#F5F3EE] to-[#EAE7DC]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link to={createPageUrl('Home')}>
+              <Button variant="ghost" className="text-gray-600 hover:text-gray-900">
+                <ArrowLeft className="w-5 h-5 mr-2" />
+                Back
+              </Button>
+            </Link>
+            <h1 className="text-3xl font-bold text-gray-900">Analytics</h1>
+          </div>
+        </div>
+
+        {/* Time Range Filter */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <Tabs value={timeRange} onValueChange={setTimeRange}>
+            <TabsList>
+              <TabsTrigger value="week">Last 7 Days</TabsTrigger>
+              <TabsTrigger value="month">Last 30 Days</TabsTrigger>
+              <TabsTrigger value="quarter">Last 3 Months</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </motion.div>
+
+        {/* Average Daily Stats */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Card className="border-2 border-[#8B9D83]/20">
+            <CardHeader>
+              <CardTitle>Average Daily Intake</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { label: 'Calories', value: averages.calories, goal: goals?.daily_calories, unit: 'kcal', color: 'orange' },
+                  { label: 'Protein', value: averages.protein, goal: goals?.daily_protein, unit: 'g', color: 'red' },
+                  { label: 'Carbs', value: averages.carbs, goal: goals?.daily_carbs, unit: 'g', color: 'amber' },
+                  { label: 'Fat', value: averages.fat, goal: goals?.daily_fat, unit: 'g', color: 'blue' }
+                ].map((item) => {
+                  const trend = getTrend(item.value, item.goal);
+                  const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus;
+                  
+                  return (
+                    <div key={item.label} className="text-center">
+                      <p className="text-sm text-gray-600 mb-1">{item.label}</p>
+                      <p className="text-3xl font-bold text-gray-900 mb-1">{item.value}</p>
+                      <p className="text-xs text-gray-500">{item.unit}</p>
+                      {item.goal && (
+                        <div className="flex items-center justify-center gap-1 mt-2">
+                          <TrendIcon className={`w-3 h-3 ${
+                            trend === 'up' ? 'text-green-600' : 
+                            trend === 'down' ? 'text-red-600' : 
+                            'text-gray-400'
+                          }`} />
+                          <span className="text-xs text-gray-600">
+                            Goal: {item.goal} {item.unit}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Charts Grid */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          
+          {/* Daily Calories Trend */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card className="border-2 border-[#8B9D83]/20">
+              <CardHeader>
+                <CardTitle>Daily Calories</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={dailyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                    <XAxis dataKey="date" stroke="#6B7280" />
+                    <YAxis stroke="#6B7280" />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="calories" stroke="#8B9D83" strokeWidth={3} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Macro Distribution */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card className="border-2 border-[#8B9D83]/20">
+              <CardHeader>
+                <CardTitle>Macronutrient Distribution</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={macroData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {macroData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Category Breakdown */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Card className="border-2 border-[#8B9D83]/20">
+              <CardHeader>
+                <CardTitle>Meals by Category</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={categoryData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                    <XAxis dataKey="name" stroke="#6B7280" />
+                    <YAxis stroke="#6B7280" />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#8B9D83" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Daily Macros */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Card className="border-2 border-[#8B9D83]/20">
+              <CardHeader>
+                <CardTitle>Daily Macronutrients</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={dailyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                    <XAxis dataKey="date" stroke="#6B7280" />
+                    <YAxis stroke="#6B7280" />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="protein" stroke="#EF4444" strokeWidth={2} />
+                    <Line type="monotone" dataKey="carbs" stroke="#F59E0B" strokeWidth={2} />
+                    <Line type="monotone" dataKey="fat" stroke="#3B82F6" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+
+        {/* Insights */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          <Card className="border-2 border-[#8B9D83]/20">
+            <CardHeader>
+              <CardTitle>Insights & Recommendations</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {goals && averages.protein < goals.daily_protein * 0.9 && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-800">
+                    💪 Consider increasing your protein intake. You're averaging {averages.protein}g, below your {goals.daily_protein}g goal.
+                  </p>
+                </div>
+              )}
+              {goals && averages.calories > goals.daily_calories * 1.1 && (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-800">
+                    🔥 You're exceeding your calorie goal. Consider smaller portions or lower-calorie alternatives.
+                  </p>
+                </div>
+              )}
+              {categoryData.find(c => c.name === 'dessert')?.value > filteredMeals.length * 0.3 && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    🍰 High dessert consumption detected. Balance with more nutrient-dense options.
+                  </p>
+                </div>
+              )}
+              {filteredMeals.length < 7 && (
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-800">
+                    📊 Log more meals to get better insights and track your progress effectively!
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    </div>
+  );
+}

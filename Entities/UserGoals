@@ -1,0 +1,36 @@
+{
+  "name": "UserGoals",
+  "type": "object",
+  "properties": {
+    "daily_calories": {
+      "type": "number",
+      "description": "Daily calorie target"
+    },
+    "daily_protein": {
+      "type": "number",
+      "description": "Daily protein target in grams"
+    },
+    "daily_carbs": {
+      "type": "number",
+      "description": "Daily carbohydrates target in grams"
+    },
+    "daily_fat": {
+      "type": "number",
+      "description": "Daily fat target in grams"
+    },
+    "goal_type": {
+      "type": "string",
+      "enum": [
+        "lose_weight",
+        "maintain",
+        "gain_muscle",
+        "custom"
+      ],
+      "default": "maintain",
+      "description": "Type of nutrition goal"
+    }
+  },
+  "required": [
+    "daily_calories"
+  ]
+}

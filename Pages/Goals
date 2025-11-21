@@ -1,0 +1,299 @@
+import React, { useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+import { ArrowLeft, Target, Save, Loader2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
+
+const GOAL_PRESETS = {
+  lose_weight: {
+    label: 'Lose Weight',
+    description: 'Calorie deficit with high protein',
+    calories: 1800,
+    protein: 150,
+    carbs: 150,
+    fat: 60
+  },
+  maintain: {
+    label: 'Maintain Weight',
+    description: 'Balanced macronutrient intake',
+    calories: 2200,
+    protein: 120,
+    carbs: 220,
+    fat: 75
+  },
+  gain_muscle: {
+    label: 'Gain Muscle',
+    description: 'Calorie surplus with high protein',
+    calories: 2800,
+    protein: 180,
+    carbs: 300,
+    fat: 90
+  },
+  custom: {
+    label: 'Custom',
+    description: 'Set your own targets',
+    calories: 2000,
+    protein: 150,
+    carbs: 200,
+    fat: 65
+  }
+};
+
+export default function Goals() {
+  const queryClient = useQueryClient();
+  
+  const { data: existingGoals, isLoading } = useQuery({
+    queryKey: ['userGoals'],
+    queryFn: async () => {
+      const goalsList = await base44.entities.UserGoals.list();
+      return goalsList[0] || null;
+    }
+  });
+
+  const [goalType, setGoalType] = useState(existingGoals?.goal_type || 'maintain');
+  const [goals, setGoals] = useState({
+    daily_calories: existingGoals?.daily_calories || GOAL_PRESETS.maintain.calories,
+    daily_protein: existingGoals?.daily_protein || GOAL_PRESETS.maintain.protein,
+    daily_carbs: existingGoals?.daily_carbs || GOAL_PRESETS.maintain.carbs,
+    daily_fat: existingGoals?.daily_fat || GOAL_PRESETS.maintain.fat
+  });
+
+  const handlePresetChange = (preset) => {
+    setGoalType(preset);
+    if (preset !== 'custom') {
+      setGoals({
+        daily_calories: GOAL_PRESETS[preset].calories,
+        daily_protein: GOAL_PRESETS[preset].protein,
+        daily_carbs: GOAL_PRESETS[preset].carbs,
+        daily_fat: GOAL_PRESETS[preset].fat
+      });
+    }
+  };
+
+  const saveGoalsMutation = useMutation({
+    mutationFn: async (data) => {
+      if (existingGoals) {
+        return await base44.entities.UserGoals.update(existingGoals.id, data);
+      } else {
+        return await base44.entities.UserGoals.create(data);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['userGoals']);
+      toast.success('Goals saved successfully!');
+    },
+    onError: () => {
+      toast.error('Failed to save goals. Please try again.');
+    }
+  });
+
+  const handleSave = () => {
+    saveGoalsMutation.mutate({
+      ...goals,
+      goal_type: goalType
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#FAF9F6] via-[#F5F3EE] to-[#EAE7DC] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#8B9D83]" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#FAF9F6] via-[#F5F3EE] to-[#EAE7DC]">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        
+        {/* Header */}
+        <div className="flex items-center gap-4">
+          <Link to={createPageUrl('Home')}>
+            <Button variant="ghost" className="text-gray-600 hover:text-gray-900">
+              <ArrowLeft className="w-5 h-5 mr-2" />
+              Back
+            </Button>
+          </Link>
+          <h1 className="text-3xl font-bold text-gray-900">Daily Goals</h1>
+        </div>
+
+        {/* Goal Type Selection */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <Card className="border-2 border-[#8B9D83]/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="w-5 h-5 text-[#8B9D83]" />
+                Choose Your Goal
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid sm:grid-cols-2 gap-4">
+                {Object.entries(GOAL_PRESETS).map(([key, preset]) => (
+                  <button
+                    key={key}
+                    onClick={() => handlePresetChange(key)}
+                    className={`p-4 rounded-xl border-2 text-left transition-all ${
+                      goalType === key
+                        ? 'border-[#8B9D83] bg-[#8B9D83]/5'
+                        : 'border-gray-200 hover:border-[#8B9D83]/50'
+                    }`}
+                  >
+                    <h3 className="font-semibold text-lg mb-1">{preset.label}</h3>
+                    <p className="text-sm text-gray-600">{preset.description}</p>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Custom Goals Input */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Card className="border-2 border-[#8B9D83]/20">
+            <CardHeader>
+              <CardTitle>Daily Targets</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid sm:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="calories" className="text-base">
+                    Calories (kcal)
+                  </Label>
+                  <Input
+                    id="calories"
+                    type="number"
+                    min="0"
+                    value={goals.daily_calories}
+                    onChange={(e) => setGoals({ ...goals, daily_calories: parseInt(e.target.value) })}
+                    className="text-lg h-12"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="protein" className="text-base">
+                    Protein (g)
+                  </Label>
+                  <Input
+                    id="protein"
+                    type="number"
+                    min="0"
+                    value={goals.daily_protein}
+                    onChange={(e) => setGoals({ ...goals, daily_protein: parseInt(e.target.value) })}
+                    className="text-lg h-12"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="carbs" className="text-base">
+                    Carbohydrates (g)
+                  </Label>
+                  <Input
+                    id="carbs"
+                    type="number"
+                    min="0"
+                    value={goals.daily_carbs}
+                    onChange={(e) => setGoals({ ...goals, daily_carbs: parseInt(e.target.value) })}
+                    className="text-lg h-12"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="fat" className="text-base">
+                    Fat (g)
+                  </Label>
+                  <Input
+                    id="fat"
+                    type="number"
+                    min="0"
+                    value={goals.daily_fat}
+                    onChange={(e) => setGoals({ ...goals, daily_fat: parseInt(e.target.value) })}
+                    className="text-lg h-12"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  💡 <strong>Tip:</strong> These goals help track your progress and provide insights. 
+                  You can always adjust them as your needs change.
+                </p>
+              </div>
+
+              <Button
+                onClick={handleSave}
+                disabled={saveGoalsMutation.isPending}
+                size="lg"
+                className="w-full bg-[#8B9D83] hover:bg-[#7A8C73] text-white py-6 text-lg"
+              >
+                {saveGoalsMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-5 h-5 mr-2" />
+                    Save Goals
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Macro Breakdown Info */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <Card className="border-2 border-[#8B9D83]/20">
+            <CardHeader>
+              <CardTitle>Your Macro Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Protein</p>
+                  <p className="text-2xl font-bold text-red-600">
+                    {Math.round((goals.daily_protein * 4 / goals.daily_calories) * 100)}%
+                  </p>
+                  <p className="text-xs text-gray-500">{goals.daily_protein * 4} cal</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Carbs</p>
+                  <p className="text-2xl font-bold text-amber-600">
+                    {Math.round((goals.daily_carbs * 4 / goals.daily_calories) * 100)}%
+                  </p>
+                  <p className="text-xs text-gray-500">{goals.daily_carbs * 4} cal</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Fat</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {Math.round((goals.daily_fat * 9 / goals.daily_calories) * 100)}%
+                  </p>
+                  <p className="text-xs text-gray-500">{goals.daily_fat * 9} cal</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    </div>
+  );
+}

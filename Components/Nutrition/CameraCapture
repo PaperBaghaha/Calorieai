@@ -1,0 +1,205 @@
+import React, { useRef, useState, useEffect } from 'react';
+import { Camera, X, Upload, Image as ImageIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
+
+export default function CameraCapture({ onCapture, disabled }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [stream, setStream] = useState(null);
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [error, setError] = useState(null);
+
+  const startCamera = async () => {
+    try {
+      setError(null);
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: 1280, height: 720 },
+        audio: false
+      });
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+      }
+      
+      setStream(mediaStream);
+      setIsCameraActive(true);
+    } catch (err) {
+      setError('Unable to access camera. Please use the upload option.');
+      console.error('Camera error:', err);
+    }
+  };
+
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    setIsCameraActive(false);
+  };
+
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    
+    if (video && canvas) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext('2d');
+      context.drawImage(video, 0, 0);
+      
+      canvas.toBlob((blob) => {
+        const file = new File([blob], `food-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        const imageUrl = URL.createObjectURL(blob);
+        setCapturedImage(imageUrl);
+        onCapture(file, imageUrl);
+        stopCamera();
+      }, 'image/jpeg', 0.9);
+    }
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      const imageUrl = URL.createObjectURL(file);
+      setCapturedImage(imageUrl);
+      onCapture(file, imageUrl);
+    }
+  };
+
+  const resetCapture = () => {
+    setCapturedImage(null);
+    if (isCameraActive) {
+      stopCamera();
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
+  return (
+    <div className="relative">
+      <AnimatePresence mode="wait">
+        {!capturedImage && !isCameraActive && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="space-y-4"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Button
+                onClick={startCamera}
+                disabled={disabled}
+                size="lg"
+                className="h-32 bg-gradient-to-br from-[#8B9D83] to-[#6B7D63] hover:from-[#7A8C73] hover:to-[#5A6C53] text-white shadow-lg"
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <Camera className="w-8 h-8" />
+                  <span className="text-sm font-medium">Take Photo</span>
+                </div>
+              </Button>
+              
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={disabled}
+                variant="outline"
+                size="lg"
+                className="h-32 border-2 border-[#8B9D83] hover:bg-[#8B9D83]/5"
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <Upload className="w-8 h-8 text-[#8B9D83]" />
+                  <span className="text-sm font-medium text-[#8B9D83]">Upload Image</span>
+                </div>
+              </Button>
+            </div>
+            
+            {error && (
+              <div className="text-sm text-red-600 text-center bg-red-50 p-3 rounded-lg">
+                {error}
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {isCameraActive && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="space-y-4"
+          >
+            <div className="relative rounded-2xl overflow-hidden bg-black aspect-video">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 border-4 border-[#8B9D83] pointer-events-none" />
+            </div>
+            
+            <div className="flex gap-3">
+              <Button
+                onClick={capturePhoto}
+                size="lg"
+                className="flex-1 bg-[#8B9D83] hover:bg-[#7A8C73] text-white"
+              >
+                <Camera className="w-5 h-5 mr-2" />
+                Capture
+              </Button>
+              <Button
+                onClick={stopCamera}
+                size="lg"
+                variant="outline"
+                className="border-2"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {capturedImage && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="space-y-4"
+          >
+            <div className="relative rounded-2xl overflow-hidden shadow-xl">
+              <img
+                src={capturedImage}
+                alt="Captured food"
+                className="w-full h-auto"
+              />
+              <Button
+                onClick={resetCapture}
+                size="icon"
+                variant="secondary"
+                className="absolute top-3 right-3 rounded-full shadow-lg"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileUpload}
+        className="hidden"
+      />
+      
+      <canvas ref={canvasRef} className="hidden" />
+    </div>
+  );
+}
